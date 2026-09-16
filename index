@@ -28,10 +28,11 @@ let remoteStates=new Map();
 
 async function loadRemoteStates(){
   try{
-    const res=await fetch(`${SUPABASE_URL}/rest/v1/numeros?select=numero,status`,{headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`}});
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/numeros?select=numero,status&order=numero.asc`,{cache:'no-store',headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`}});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows=await res.json();
-    remoteStates=new Map(rows.map(r=>[Number(r.numero),String(r.status||'').toLowerCase()]));
+    remoteStates=new Map(rows.map(r=>[Number(r.numero),String(r.status||'').trim().toLowerCase()]));
+    console.table(rows);
     renderGrid();
   }catch(err){
     console.error('Falha ao ler Supabase:',err);
@@ -46,9 +47,10 @@ function renderGrid(){
   for(let i=1;i<=100;i++){
     const b=document.createElement('button'); b.className='num'; b.textContent=String(i).padStart(3,'0');
     const status=remoteStates.get(i) || 'disponivel';
-    if(status==='vendido'){b.classList.add('sold');b.disabled=true}
-    else if(status==='reservado'){b.classList.add('hold');b.disabled=true}
-    else {available++; b.onclick=()=>toggle(i,b)}
+    b.dataset.numero=String(i); b.dataset.status=status;
+    if(status==='vendido'){b.classList.add('sold');b.disabled=true;b.title='Vendido'}
+    else if(status==='reservado'){b.classList.add('hold');b.disabled=true;b.title='Reservado'}
+    else {available++; b.title='Disponível'; b.onclick=()=>toggle(i,b)}
     grid.appendChild(b);
   }
   document.getElementById('available').textContent=available+' disponíveis';
