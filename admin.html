@@ -71,7 +71,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V4.5 · participantes · desempenho separado · reservas por campanha · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V4.5.1 · vínculo de participantes corrigido · desempenho separado · reservas por campanha · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -200,7 +200,7 @@ async function load(){
   }
   $('status').textContent='Carregando reservas...';
   const [r,n,c,p]=await Promise.all([
-    sb.from('reservas').select('id,status,criado_em,expira_em,campanha_id,participante_id').order('criado_em',{ascending:false}),
+    sb.from('reservas').select('id,status,criado_em,expira_em,campanha_id,participante_id,participante:participantes(id,nome_completo,cpf,data_nascimento,whatsapp,email)').order('criado_em',{ascending:false}),
     sb.from('numeros').select('numero,status,reserva_id,reservado_ate,campanha_id').not('reserva_id','is',null),
     sb.from('campanhas').select('id,titulo,status').order('criado_em',{ascending:false}),
     sb.from('participantes').select('id,nome_completo,cpf,data_nascimento,whatsapp,email')
@@ -210,6 +210,11 @@ async function load(){
   numerosCache=n.data||[];
   campanhasCache=c.data||[];
   participantesCache=p.data||[];
+  todasReservasCache.forEach(r=>{
+    if(r.participante && !participantesCache.some(p=>p.id===r.participante.id)){
+      participantesCache.push(r.participante);
+    }
+  });
   atualizarFiltroCampanhas();
   const now=Date.now();
   const ativas=todasReservasCache.filter(x=>x.status==='aguardando' && new Date(x.expira_em).getTime()>now);
@@ -229,7 +234,7 @@ async function load(){
     const linked=numerosCache.filter(y=>y.reserva_id===x.id).sort((a,b)=>a.numero-b.numero);
     const camp=campanhasCache.find(c=>c.id===x.campanha_id);
     const campNome=camp?camp.titulo:(x.campanha_id?'Campanha não encontrada':'Reserva antiga');
-    const participante=participantesCache.find(p=>p.id===x.participante_id);
+    const participante=x.participante || participantesCache.find(p=>p.id===x.participante_id);
     const participanteHtml=participante
       ? `<button class="participant-link" onclick="abrirParticipante('${participante.id}')">👤 ${escapeHtml(participante.nome_completo)}</button>`
       : `<div class="time" style="margin-top:9px">Participante não vinculado</div>`;
