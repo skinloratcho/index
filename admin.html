@@ -42,6 +42,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .file-pick input{display:none}
 .image-preview{display:none;margin-top:12px;max-width:100%;max-height:260px;border-radius:14px;object-fit:cover}
 .upload-note{font-size:12px;opacity:.65;margin-top:7px}
+
+.campaign-list{display:grid;gap:12px;margin-top:12px}
+.campaign-card{display:grid;grid-template-columns:110px 1fr auto;gap:14px;align-items:center}
+.campaign-thumb{width:110px;height:80px;border-radius:12px;object-fit:cover;background:#111}
+.campaign-info h3{margin:0 0 6px}
+.campaign-info .meta{font-size:13px;opacity:.72}
+.campaign-status{display:inline-block;margin-top:7px;font-size:12px;font-weight:800;text-transform:uppercase}
+@media(max-width:700px){.campaign-card{grid-template-columns:80px 1fr}.campaign-thumb{width:80px;height:70px}.campaign-actions{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -59,7 +67,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V3.1 · upload de imagens · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V3.2 · gestão de campanhas · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -73,6 +81,12 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <button id="tabHistorico" class="tab">Histórico</button>
     </div>
     <div id="list" class="list"></div>
+
+    <section class="card campaign-box">
+      <h2>Campanhas</h2>
+      <div class="sub">Campanhas cadastradas no sistema.</div>
+      <div id="campaignList" class="campaign-list"><div class="empty">Carregando campanhas...</div></div>
+    </section>
 
     <section class="card campaign-box">
       <h2>Nova campanha</h2>
@@ -167,7 +181,7 @@ async function load(){
   $('status').textContent='Conectado ao Supabase · somente leitura'; $('status').className='msg ok';
   if(!reservas.length){
     $('list').innerHTML=`<div class="card empty">${abaAtual==='historico'?'Nenhum registro no histórico.':'Nenhuma reserva ativa.'}</div>`;
-    carregando=false; return;
+    carregando=false; await carregarCampanhas(); return;
   }
   $('list').innerHTML=reservas.map(x=>{
     const linked=numerosCache.filter(y=>y.reserva_id===x.id).sort((a,b)=>a.numero-b.numero);
@@ -182,6 +196,7 @@ async function load(){
   }).join('');
   atualizarContadoresExpiracao();
   carregando=false;
+  await carregarCampanhas();
 }
 
 
@@ -256,6 +271,61 @@ setInterval(async()=>{
   }
 },1000);
 
+
+
+async function carregarCampanhas(){
+  const box=$('campaignList');
+  if(!box) return;
+
+  const {data,error}=await sb
+    .from('campanhas')
+    .select('id,titulo,descricao,imagem_url,preco_numero,quantidade_numeros,status,criado_em')
+    .order('criado_em',{ascending:false});
+
+  if(error){
+    box.innerHTML=`<div class="bad">Erro ao carregar campanhas: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+
+  if(!data || !data.length){
+    box.innerHTML='<div class="empty">Nenhuma campanha cadastrada.</div>';
+    return;
+  }
+
+  box.innerHTML=data.map(c=>`
+    <div class="card campaign-card">
+      ${c.imagem_url
+        ? `<img class="campaign-thumb" src="${escapeHtml(c.imagem_url)}" alt="">`
+        : `<div class="campaign-thumb"></div>`}
+      <div class="campaign-info">
+        <h3>${escapeHtml(c.titulo)}</h3>
+        <div class="meta">R$ ${Number(c.preco_numero).toFixed(2).replace('.',',')} por número · ${c.quantidade_numeros} números</div>
+        <span class="campaign-status">${escapeHtml(c.status)}</span>
+      </div>
+      <div class="campaign-actions">
+        ${c.status==='rascunho'
+          ? `<button onclick="gerarNumerosCampanha('${c.id}', '${escapeHtml(c.titulo).replace(/'/g,"&#39;")}')">Gerar números</button>`
+          : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function gerarNumerosCampanha(id,titulo){
+  if(!confirm(`Gerar todos os números da campanha "${titulo}"? Essa operação é feita apenas uma vez.`)) return;
+
+  setBusy(true);
+  const {data,error}=await sb.rpc('admin_gerar_numeros_campanha',{p_campanha:id});
+  setBusy(false);
+
+  if(error){
+    alert('Erro: '+error.message);
+    return;
+  }
+
+  alert(`${data} números gerados com sucesso.`);
+  await carregarCampanhas();
+}
 
 $('campImagemArquivo').addEventListener('change',()=>{
   const arquivo=$('campImagemArquivo').files[0];
@@ -349,6 +419,7 @@ $('campaignForm').addEventListener('submit', async e=>{
   msg.textContent='Campanha criada como rascunho · ID: '+data;
   msg.className='campaign-result ok';
   $('campaignForm').reset();
+  await carregarCampanhas();
   $('campImagemLabel').textContent='Escolher imagem';
   const preview=$('campImagemPreview');
   preview.style.display='none';
