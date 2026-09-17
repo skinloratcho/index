@@ -14,14 +14,14 @@
 <section class="hero">
  <div class="heroContent"><div class="eyebrow">Campanha em destaque</div><h1>Setup Gamer<br>dos sonhos.</h1><p>Protótipo demonstrativo de uma campanha com seleção de números. Nenhuma cobrança real é realizada nesta versão.</p><div class="price"><strong>R$ 5,00</strong><span>por número</span></div><div class="progress"><i></i></div><div class="meta"><span>62% preenchido</span><span>62 / 100</span></div><button class="cta" onclick="document.getElementById('nums').scrollIntoView({behavior:'smooth'})">Escolher números</button></div>
 </section>
-<section class="section" id="nums"><div class="sectionHead"><div><small>ESCOLHA OS SEUS</small><h2>Números</h2></div><small id="available">Carregando...</small></div><div class="numbers" id="grid"></div><div class="legend"><span><i class="dot"></i>Disponível</span><span><i class="dot h"></i>Reservado</span><span><i class="dot s"></i>Indisponível</span></div></section>
-<div class="foot">Protótipo V3 · dados 100% Supabase · powered by GLORIA</div>
+<section class="section" id="nums"><div class="sectionHead"><div><small>ESCOLHA OS SEUS</small><h2>Números</h2></div><small id="available">Carregando...</small></div><div class="numbers" id="grid"></div><div id="dbStatus" style="margin-top:14px;font-size:12px;color:#aaa">🟡 Conectando ao Supabase...</div><div class="legend"><span><i class="dot"></i>Disponível</span><span><i class="dot h"></i>Reservado</span><span><i class="dot s"></i>Indisponível</span></div></section>
+<div class="foot">Protótipo V4 · conexão Supabase corrigida · powered by GLORIA</div>
 </div>
 <div class="checkout" id="bar"><div><strong id="barTitle">0 números selecionados</strong><span id="barPrice">R$ 0,00</span></div><button onclick="openCheckout()">Continuar</button></div>
 <div class="modal" id="modal"><div class="sheet"><h3>Resumo</h3><p>Confira sua seleção antes de continuar.</p><div class="summary"><div class="row"><span>Números</span><strong id="sumNums">—</strong></div><div class="row"><span>Quantidade</span><strong id="sumQty">0</strong></div><div class="row"><span>Total demonstrativo</span><strong id="sumTotal">R$ 0,00</strong></div></div><p style="font-size:13px">Nesta V1 o checkout é apenas visual. Pagamento, cadastro e reserva em servidor não estão ativos.</p><div class="actions"><button class="ghost" onclick="closeCheckout()">Voltar</button><button class="confirm" onclick="fakeFinish()">Simular reserva</button></div></div></div>
 <script>
 const SUPABASE_URL='https://fhtlbqvkzmwpengbfmfq.supabase.co';
-const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZodGxicXZ6bXdwZW5nYmZtZnEiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4OTU4OTI0NywiZXhwIjoyMTA1MTY1MjQ3fQ.znctnTWMNCgh4Lrv3DlKevSNLg9aZrMgdGvO6_fOSc0';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZodGxicXZrem13cGVuZ2JmbWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1ODkyNDcsImV4cCI6MjEwNTE2NTI0N30.znctnTWMNCgh4Lrv3DlKevSNLg9aZrMgdGvO6_fOSc0';
 const PRICE=5, selected=new Set();
 const grid=document.getElementById('grid');
 let remoteStates=new Map(); // Sem estados fictícios: só o Supabase define reservado/vendido
@@ -29,7 +29,7 @@ let remoteStates=new Map(); // Sem estados fictícios: só o Supabase define res
 async function loadRemoteStates(){
   try{
     const res=await fetch(`${SUPABASE_URL}/rest/v1/numeros?select=numero,status&order=numero.asc`,{cache:'no-store',headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`}});
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    if(!res.ok){ const body=await res.text(); throw new Error(`HTTP ${res.status}: ${body}`); }
     const rows=await res.json();
     remoteStates=new Map();
     for(const r of rows){
@@ -40,10 +40,12 @@ async function loadRemoteStates(){
       }
     }
     console.table(rows);
+    document.getElementById('dbStatus').textContent=`🟢 Supabase conectado · ${rows.length} registros recebidos`;
     renderGrid();
   }catch(err){
     console.error('Falha ao ler Supabase:',err);
     document.getElementById('available').textContent='Falha ao conectar ao banco';
+    document.getElementById('dbStatus').textContent=`🔴 Erro Supabase · ${err.message}`;
     renderGrid();
   }
 }
