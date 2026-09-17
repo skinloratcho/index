@@ -67,7 +67,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V3.3 · publicação de campanhas · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V3.4 · múltiplas campanhas · encerramento · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -309,16 +309,43 @@ async function carregarCampanhas(){
               <button class="confirm" onclick="publicarCampanha('${c.id}', '${escapeHtml(c.titulo).replace(/'/g,"&#39;")}')">Publicar campanha</button>
              </div>`
           : c.status==='ativa'
-            ? `<span class="campaign-status">PUBLICADA</span>`
-            : ''}
+            ? `<div class="actions">
+                <span class="campaign-status">ATIVA</span>
+                <button class="cancel" onclick="encerrarCampanha('${c.id}', '${escapeHtml(c.titulo).replace(/'/g,"&#39;")}')">Encerrar campanha</button>
+               </div>`
+            : c.status==='encerrada'
+              ? `<span class="campaign-status">ENCERRADA</span>`
+              : ''}
       </div>
     </div>
   `).join('');
 }
 
 
+
+async function encerrarCampanha(id,titulo){
+  if(!confirm(`Encerrar a campanha "${titulo}"?\n\nEla deixará de aceitar novas reservas. O histórico e os números vendidos serão preservados.`)) return;
+
+  setBusy(true);
+  const {data,error}=await sb.rpc('admin_encerrar_campanha',{p_campanha:id});
+  setBusy(false);
+
+  if(error){
+    alert('Não foi possível encerrar: '+error.message);
+    return;
+  }
+
+  if(data!==true){
+    alert('A campanha não foi encerrada.');
+    return;
+  }
+
+  alert('Campanha encerrada com sucesso.');
+  await carregarCampanhas();
+}
+
 async function publicarCampanha(id,titulo){
-  if(!confirm(`Publicar a campanha "${titulo}"?\n\nEla passará a ser a campanha ativa do sistema.`)) return;
+  if(!confirm(`Publicar a campanha "${titulo}"?\n\nEla ficará ativa e poderá receber reservas.`)) return;
 
   setBusy(true);
   const {data,error}=await sb.rpc('admin_publicar_campanha',{p_campanha:id});
