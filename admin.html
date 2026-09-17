@@ -39,7 +39,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V2 · ações protegidas</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V2.1 · expiração automática</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -74,13 +74,22 @@ $('loginForm').addEventListener('submit',async e=>{
   $('loginMsg').textContent=''; await enter();
 });
 async function load(){
+  $('status').textContent='Limpando reservas expiradas...';
+  const limpeza=await sb.rpc('limpar_reservas_expiradas');
+  if(limpeza.error){
+    $('status').textContent='Erro ao limpar expiradas: '+limpeza.error.message;
+    $('status').className='msg bad';
+    return;
+  }
   $('status').textContent='Carregando reservas...';
   const [r,n]=await Promise.all([
     sb.from('reservas').select('id,status,criado_em,expira_em').order('criado_em',{ascending:false}),
     sb.from('numeros').select('numero,status,reserva_id,reservado_ate').not('reserva_id','is',null)
   ]);
   if(r.error||n.error){$('status').textContent='Erro ao carregar: '+(r.error?.message||n.error?.message);$('status').className='msg bad';return}
-  const reservas=r.data||[], nums=n.data||[], now=Date.now();
+  const todasReservas=r.data||[], nums=n.data||[], now=Date.now();
+  // Expiradas permanecem no banco como histórico, mas somem da lista principal.
+  const reservas=todasReservas.filter(x=>x.status!=='expirada');
   $('total').textContent=reservas.length;
   $('active').textContent=reservas.filter(x=>x.status==='aguardando' && new Date(x.expira_em).getTime()>now).length;
   $('reservedNums').textContent=nums.filter(x=>x.status==='reservado').length;
