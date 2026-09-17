@@ -67,7 +67,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V4.3 · campanhas organizadas · reservas por campanha · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V4.3.2 · abas de campanhas corrigidas · reservas por campanha · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -90,6 +90,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
     <section class="card campaign-box">
       <h2>Campanhas</h2>
       <div class="sub">Campanhas cadastradas no sistema.</div>
+      <div class="tabs" style="margin:14px 0 16px">
+        <button id="tabCampAtivas" class="active" type="button">Ativas</button>
+        <button id="tabCampRascunhos" type="button">Rascunhos</button>
+        <button id="tabCampHistorico" type="button">Histórico</button>
+      </div>
       <div id="campaignList" class="campaign-list"><div class="empty">Carregando campanhas...</div></div>
     </section>
 
@@ -335,7 +340,22 @@ async function carregarCampanhas(){
     return;
   }
 
-  box.innerHTML=data.map(c=>`
+  const campanhasVisiveis = abaCampanhas==='historico'
+    ? data.filter(c=>c.status==='encerrada')
+    : abaCampanhas==='rascunhos'
+      ? data.filter(c=>c.status==='rascunho')
+      : data.filter(c=>c.status==='ativa');
+
+  if(!campanhasVisiveis.length){
+    box.innerHTML = abaCampanhas==='historico'
+      ? '<div class="empty">Nenhuma campanha encerrada.</div>'
+      : abaCampanhas==='rascunhos'
+        ? '<div class="empty">Nenhuma campanha em rascunho.</div>'
+        : '<div class="empty">Nenhuma campanha ativa.</div>';
+    return;
+  }
+
+  box.innerHTML=campanhasVisiveis.map(c=>`
     <div class="card campaign-card">
       ${c.imagem_url
         ? `<img class="campaign-thumb" src="${escapeHtml(c.imagem_url)}" alt="">`
