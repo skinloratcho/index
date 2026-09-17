@@ -67,7 +67,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V3.2 · gestão de campanhas · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V3.3 · publicação de campanhas · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -304,11 +304,38 @@ async function carregarCampanhas(){
       </div>
       <div class="campaign-actions">
         ${c.status==='rascunho'
-          ? `<button onclick="gerarNumerosCampanha('${c.id}', '${escapeHtml(c.titulo).replace(/'/g,"&#39;")}')">Gerar números</button>`
-          : ''}
+          ? `<div class="actions">
+              <button onclick="gerarNumerosCampanha('${c.id}', '${escapeHtml(c.titulo).replace(/'/g,"&#39;")}')">Gerar números</button>
+              <button class="confirm" onclick="publicarCampanha('${c.id}', '${escapeHtml(c.titulo).replace(/'/g,"&#39;")}')">Publicar campanha</button>
+             </div>`
+          : c.status==='ativa'
+            ? `<span class="campaign-status">PUBLICADA</span>`
+            : ''}
       </div>
     </div>
   `).join('');
+}
+
+
+async function publicarCampanha(id,titulo){
+  if(!confirm(`Publicar a campanha "${titulo}"?\n\nEla passará a ser a campanha ativa do sistema.`)) return;
+
+  setBusy(true);
+  const {data,error}=await sb.rpc('admin_publicar_campanha',{p_campanha:id});
+  setBusy(false);
+
+  if(error){
+    alert('Não foi possível publicar: '+error.message);
+    return;
+  }
+
+  if(data!==true){
+    alert('A campanha não foi publicada.');
+    return;
+  }
+
+  alert('Campanha publicada com sucesso.');
+  await carregarCampanhas();
 }
 
 async function gerarNumerosCampanha(id,titulo){
