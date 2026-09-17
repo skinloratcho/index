@@ -67,7 +67,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V4.1 · reservas por campanha · múltiplas campanhas · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V4.2 · histórico de campanhas · reservas por campanha · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -158,6 +158,7 @@ let todasReservasCache=[];
 let numerosCache=[];
 let campanhasCache=[];
 let filtroCampanha='';
+let abaCampanhas='atuais';
 async function load(){
   if(carregando) return;
   carregando=true;
@@ -302,6 +303,16 @@ setInterval(async()=>{
 },1000);
 
 
+
+function atualizarAbasCampanhas(){
+  const a=$('tabCampAtivas'), b=$('tabCampHistorico');
+  if(a) a.classList.toggle('active',abaCampanhas==='atuais');
+  if(b) b.classList.toggle('active',abaCampanhas==='historico');
+}
+document.addEventListener('click',e=>{
+  if(e.target?.id==='tabCampAtivas'){abaCampanhas='atuais';atualizarAbasCampanhas();carregarCampanhas();}
+  if(e.target?.id==='tabCampHistorico'){abaCampanhas='historico';atualizarAbasCampanhas();carregarCampanhas();}
+});
 
 async function carregarCampanhas(){
   const box=$('campaignList');
