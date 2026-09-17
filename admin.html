@@ -28,6 +28,15 @@ button{border:0;border-radius:13px;padding:12px 16px;font-weight:700;cursor:poin
 .cancel{background:#27191b;color:#ff9a9a;border:1px solid #543036}
 button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:700px){.stats{grid-template-columns:1fr}.res{grid-template-columns:1fr}.top-actions{flex-direction:column}}
+
+.campaign-box{margin-top:18px;padding:18px}
+.campaign-box h2{margin:0 0 4px}
+.campaign-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.campaign-grid .full{grid-column:1/-1}
+.campaign-box textarea{min-height:100px;resize:vertical}
+.campaign-box input,.campaign-box textarea{width:100%;box-sizing:border-box}
+.campaign-result{margin-top:10px;font-size:13px}
+@media(max-width:700px){.campaign-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -45,7 +54,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V2.4.1 · histórico corrigido · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V3.0 · campanhas · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -59,6 +68,37 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <button id="tabHistorico" class="tab">Histórico</button>
     </div>
     <div id="list" class="list"></div>
+
+    <section class="card campaign-box">
+      <h2>Nova campanha</h2>
+      <div class="sub">A campanha será criada como rascunho e ainda não aparecerá no site público.</div>
+      <form id="campaignForm" class="campaign-grid">
+        <div class="full">
+          <label>Título</label>
+          <input id="campTitulo" type="text" maxlength="120" required placeholder="Ex.: PC Gamer RTX 5070">
+        </div>
+        <div class="full">
+          <label>Descrição</label>
+          <textarea id="campDescricao" placeholder="Descrição da campanha"></textarea>
+        </div>
+        <div class="full">
+          <label>URL da imagem</label>
+          <input id="campImagem" type="url" placeholder="https://...">
+        </div>
+        <div>
+          <label>Preço por número (R$)</label>
+          <input id="campPreco" type="number" min="0" step="0.01" required placeholder="10,00">
+        </div>
+        <div>
+          <label>Quantidade de números</label>
+          <input id="campQuantidade" type="number" min="1" max="100000" step="1" required placeholder="100">
+        </div>
+        <div class="full">
+          <button class="primary" type="submit">Criar campanha</button>
+          <div id="campaignMsg" class="campaign-result"></div>
+        </div>
+      </form>
+    </section>
   </main>
 </div>
 <script>
@@ -205,6 +245,46 @@ setInterval(async()=>{
     await load();
   }
 },1000);
+
+$('campaignForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const msg=$('campaignMsg');
+  const preco=Number($('campPreco').value);
+  const quantidade=Number.parseInt($('campQuantidade').value,10);
+
+  if(!Number.isFinite(preco) || preco<0 || !Number.isInteger(quantidade) || quantidade<1){
+    msg.textContent='Confira o preço e a quantidade.';
+    msg.className='campaign-result bad';
+    return;
+  }
+
+  if(!confirm(`Criar a campanha "${$('campTitulo').value.trim()}" como rascunho?`)) return;
+
+  msg.textContent='Criando campanha...';
+  msg.className='campaign-result';
+  setBusy(true);
+
+  const {data,error}=await sb.rpc('admin_criar_campanha',{
+    p_titulo:$('campTitulo').value.trim(),
+    p_descricao:$('campDescricao').value.trim(),
+    p_imagem_url:$('campImagem').value.trim(),
+    p_preco_numero:preco,
+    p_quantidade_numeros:quantidade
+  });
+
+  setBusy(false);
+
+  if(error){
+    msg.textContent='Erro: '+error.message;
+    msg.className='campaign-result bad';
+    return;
+  }
+
+  msg.textContent='Campanha criada como rascunho · ID: '+data;
+  msg.className='campaign-result ok';
+  $('campaignForm').reset();
+});
+
 $('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
 enter();
 </script>
