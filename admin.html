@@ -17,6 +17,10 @@ button{border:0;border-radius:13px;padding:12px 16px;font-weight:700;cursor:poin
 .hidden{display:none!important}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}.stat b{font-size:27px;display:block}.stat span{color:var(--muted)}
 .list{display:grid;gap:12px}.res{display:grid;grid-template-columns:1.3fr .8fr .8fr;gap:16px;align-items:center}.id{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);word-break:break-all}.nums{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.num{background:#20242b;border:1px solid #303640;padding:5px 8px;border-radius:9px;font:12px ui-monospace,monospace}.badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#242830;font-size:12px}.time{color:var(--muted);font-size:13px}
 .empty{text-align:center;color:var(--muted);padding:35px}.top-actions{display:flex;gap:8px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.confirm{background:#f5f7fa;color:#090a0c}
+.cancel{background:#27191b;color:#ff9a9a;border:1px solid #543036}
+button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:700px){.stats{grid-template-columns:1fr}.res{grid-template-columns:1fr}.top-actions{flex-direction:column}}
 </style>
 </head>
@@ -35,7 +39,7 @@ button{border:0;border-radius:13px;padding:12px 16px;font-weight:700;cursor:poin
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Painel somente leitura · V1</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V2 · ações protegidas</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -86,12 +90,39 @@ async function load(){
     const linked=nums.filter(y=>y.reserva_id===x.id).sort((a,b)=>a.numero-b.numero);
     const expired=new Date(x.expira_em).getTime()<=now;
     return `<article class="card res">
-      <div><span class="badge">${escapeHtml(x.status)}${expired?' · expirada':''}</span><div class="nums">${linked.length?linked.map(y=>`<span class="num">${String(y.numero).padStart(3,'0')}</span>`).join(''):'<span class="time">Sem números vinculados</span>'}</div></div>
+      <div><span class="badge">${escapeHtml(x.status)}${expired?' · expirada':''}</span><div class="nums">${linked.length?linked.map(y=>`<span class="num">${String(y.numero).padStart(3,'0')}</span>`).join(''):'<span class="time">Sem números vinculados</span>'}</div>
+      ${x.status==='aguardando' && !expired ? `<div class="actions"><button class="confirm" onclick="confirmarPagamento('${x.id}')">✓ Confirmar pagamento</button><button class="cancel" onclick="cancelarReserva('${x.id}')">Cancelar reserva</button></div>` : ''}
+      </div>
       <div><div class="time">Criada</div><div>${fmt(x.criado_em)}</div><div class="time" style="margin-top:8px">Expira</div><div>${fmt(x.expira_em)}</div></div>
       <div><div class="time">ID da reserva</div><div class="id">${escapeHtml(x.id)}</div></div>
     </article>`;
   }).join('');
 }
+
+async function confirmarPagamento(id){
+  if(!confirm('Confirmar o pagamento desta reserva? Os números passarão para VENDIDO.')) return;
+  setBusy(true);
+  const {data,error}=await sb.rpc('confirmar_pagamento',{p_reserva:id});
+  setBusy(false);
+  if(error){ alert('Erro: '+error.message); return; }
+  if(data!==true){ alert('A reserva não possui números reservados para confirmar.'); await load(); return; }
+  await load();
+  alert('Pagamento confirmado. Números marcados como VENDIDO.');
+}
+async function cancelarReserva(id){
+  if(!confirm('Cancelar esta reserva? Os números voltarão a ficar DISPONÍVEIS.')) return;
+  setBusy(true);
+  const {data,error}=await sb.rpc('cancelar_reserva',{p_reserva:id});
+  setBusy(false);
+  if(error){ alert('Erro: '+error.message); return; }
+  if(data!==true){ alert('A reserva não possui números reservados para liberar.'); await load(); return; }
+  await load();
+  alert('Reserva cancelada e números liberados.');
+}
+function setBusy(v){
+  document.querySelectorAll('button').forEach(b=>b.disabled=v);
+}
+
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 $('refresh').onclick=load;
 $('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
