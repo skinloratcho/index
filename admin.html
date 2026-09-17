@@ -67,7 +67,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V3.4 · múltiplas campanhas · encerramento · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V4 · reservas por campanha · múltiplas campanhas · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -151,6 +151,8 @@ let carregando=false;
 let abaAtual='ativas';
 let todasReservasCache=[];
 let numerosCache=[];
+let campanhasCache=[];
+let filtroCampanha='';
 async function load(){
   if(carregando) return;
   carregando=true;
@@ -163,31 +165,37 @@ async function load(){
     return;
   }
   $('status').textContent='Carregando reservas...';
-  const [r,n]=await Promise.all([
-    sb.from('reservas').select('id,status,criado_em,expira_em').order('criado_em',{ascending:false}),
-    sb.from('numeros').select('numero,status,reserva_id,reservado_ate').not('reserva_id','is',null)
+  const [r,n,c]=await Promise.all([
+    sb.from('reservas').select('id,status,criado_em,expira_em,campanha_id').order('criado_em',{ascending:false}),
+    sb.from('numeros').select('numero,status,reserva_id,reservado_ate,campanha_id').not('reserva_id','is',null),
+    sb.from('campanhas').select('id,titulo,status').order('criado_em',{ascending:false})
   ]);
-  if(r.error||n.error){$('status').textContent='Erro ao carregar: '+(r.error?.message||n.error?.message);$('status').className='msg bad';carregando=false;return}
+  if(r.error||n.error||c.error){$('status').textContent='Erro ao carregar: '+(r.error?.message||n.error?.message||c.error?.message);$('status').className='msg bad';carregando=false;return}
   todasReservasCache=r.data||[];
   numerosCache=n.data||[];
+  campanhasCache=c.data||[];
+  atualizarFiltroCampanhas();
   const now=Date.now();
   const ativas=todasReservasCache.filter(x=>x.status==='aguardando' && new Date(x.expira_em).getTime()>now);
   $('total').textContent=todasReservasCache.length;
   $('active').textContent=ativas.length;
   $('reservedNums').textContent=numerosCache.filter(x=>x.status==='reservado').length;
-  const reservas = abaAtual==='historico'
+  let reservas = abaAtual==='historico'
     ? todasReservasCache.filter(x=>x.status!=='aguardando')
     : ativas;
-  $('status').textContent='Conectado ao Supabase · somente leitura'; $('status').className='msg ok';
+  if(filtroCampanha) reservas=reservas.filter(x=>x.campanha_id===filtroCampanha);
+  $('status').textContent='Conectado ao Supabase · reservas organizadas por campanha'; $('status').className='msg ok';
   if(!reservas.length){
     $('list').innerHTML=`<div class="card empty">${abaAtual==='historico'?'Nenhum registro no histórico.':'Nenhuma reserva ativa.'}</div>`;
     carregando=false; await carregarCampanhas(); return;
   }
   $('list').innerHTML=reservas.map(x=>{
     const linked=numerosCache.filter(y=>y.reserva_id===x.id).sort((a,b)=>a.numero-b.numero);
+    const camp=campanhasCache.find(c=>c.id===x.campanha_id);
+    const campNome=camp?camp.titulo:(x.campanha_id?'Campanha não encontrada':'Reserva antiga');
     const expired=new Date(x.expira_em).getTime()<=now;
     return `<article class="card res">
-      <div><span class="badge">${escapeHtml(x.status)}${expired?' · expirada':''}</span><div class="nums">${linked.length?linked.map(y=>`<span class="num">${String(y.numero).padStart(3,'0')}</span>`).join(''):'<span class="time">Sem números vinculados</span>'}</div>
+      <div><span class="badge">${escapeHtml(x.status)}${expired?' · expirada':''}</span><span class="badge" style="margin-left:7px">${escapeHtml(campNome)}</span><div class="nums">${linked.length?linked.map(y=>`<span class="num">${String(y.numero).padStart(3,'0')}</span>`).join(''):'<span class="time">Sem números vinculados</span>'}</div>
       ${x.status==='aguardando' && !expired ? `<div class="expiry-live" data-expira="${x.expira_em}">Expira em --:--</div><div class="actions"><button class="confirm" onclick="confirmarPagamento('${x.id}')">✓ Confirmar pagamento</button><button class="cancel" onclick="cancelarReserva('${x.id}')">Cancelar reserva</button></div>` : ''}
       </div>
       <div><div class="time">Criada</div><div>${fmt(x.criado_em)}</div><div class="time" style="margin-top:8px">Expira</div><div>${fmt(x.expira_em)}</div></div>
@@ -199,6 +207,20 @@ async function load(){
   await carregarCampanhas();
 }
 
+
+function atualizarFiltroCampanhas(){
+  const sel=$('filtroCampanha');
+  if(!sel) return;
+  const atual=filtroCampanha;
+  sel.innerHTML='<option value="">Todas as campanhas</option>'+campanhasCache.map(c=>
+    `<option value="${c.id}">${escapeHtml(c.titulo)} · ${escapeHtml(c.status)}</option>`
+  ).join('');
+  sel.value=atual;
+}
+$('filtroCampanha').addEventListener('change',async e=>{
+  filtroCampanha=e.target.value;
+  await load();
+});
 
 function atualizarContadoresExpiracao(){
   const agora=Date.now();
