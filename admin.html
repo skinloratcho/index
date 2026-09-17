@@ -39,7 +39,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V2.1 · expiração automática</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V2.2 · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -73,12 +73,16 @@ $('loginForm').addEventListener('submit',async e=>{
   if(!(await verifyAdmin())){await sb.auth.signOut();$('loginMsg').textContent='Usuário autenticado, mas sem permissão de administrador.';$('loginMsg').className='msg bad';return}
   $('loginMsg').textContent=''; await enter();
 });
+let carregando=false;
 async function load(){
+  if(carregando) return;
+  carregando=true;
   $('status').textContent='Limpando reservas expiradas...';
   const limpeza=await sb.rpc('limpar_reservas_expiradas');
   if(limpeza.error){
     $('status').textContent='Erro ao limpar expiradas: '+limpeza.error.message;
     $('status').className='msg bad';
+    carregando=false;
     return;
   }
   $('status').textContent='Carregando reservas...';
@@ -86,7 +90,7 @@ async function load(){
     sb.from('reservas').select('id,status,criado_em,expira_em').order('criado_em',{ascending:false}),
     sb.from('numeros').select('numero,status,reserva_id,reservado_ate').not('reserva_id','is',null)
   ]);
-  if(r.error||n.error){$('status').textContent='Erro ao carregar: '+(r.error?.message||n.error?.message);$('status').className='msg bad';return}
+  if(r.error||n.error){$('status').textContent='Erro ao carregar: '+(r.error?.message||n.error?.message);$('status').className='msg bad';carregando=false;return}
   const todasReservas=r.data||[], nums=n.data||[], now=Date.now();
   // Expiradas permanecem no banco como histórico, mas somem da lista principal.
   const reservas=todasReservas.filter(x=>x.status!=='expirada');
@@ -94,7 +98,7 @@ async function load(){
   $('active').textContent=reservas.filter(x=>x.status==='aguardando' && new Date(x.expira_em).getTime()>now).length;
   $('reservedNums').textContent=nums.filter(x=>x.status==='reservado').length;
   $('status').textContent='Conectado ao Supabase · somente leitura'; $('status').className='msg ok';
-  if(!reservas.length){$('list').innerHTML='<div class="card empty">Nenhuma reserva encontrada.</div>';return}
+  if(!reservas.length){$('list').innerHTML='<div class="card empty">Nenhuma reserva encontrada.</div>';carregando=false;return}
   $('list').innerHTML=reservas.map(x=>{
     const linked=nums.filter(y=>y.reserva_id===x.id).sort((a,b)=>a.numero-b.numero);
     const expired=new Date(x.expira_em).getTime()<=now;
@@ -106,6 +110,7 @@ async function load(){
       <div><div class="time">ID da reserva</div><div class="id">${escapeHtml(x.id)}</div></div>
     </article>`;
   }).join('');
+  carregando=false;
 }
 
 async function confirmarPagamento(id){
@@ -133,7 +138,24 @@ function setBusy(v){
 }
 
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-$('refresh').onclick=load;
+let segundosRefresh=15;
+function resetRefreshCountdown(){
+  segundosRefresh=15;
+  const el=$('refreshCountdown');
+  if(el) el.textContent=segundosRefresh;
+}
+$('refresh').onclick=async()=>{ resetRefreshCountdown(); await load(); };
+
+setInterval(async()=>{
+  if($('adminView').classList.contains('hidden')) return;
+  segundosRefresh--;
+  const el=$('refreshCountdown');
+  if(el) el.textContent=Math.max(segundosRefresh,0);
+  if(segundosRefresh<=0){
+    resetRefreshCountdown();
+    await load();
+  }
+},1000);
 $('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
 enter();
 </script>
