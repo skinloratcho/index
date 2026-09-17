@@ -69,44 +69,31 @@ function toggle(n,b){selected.has(n)?selected.delete(n):selected.add(n);b.classL
 function update(){const q=selected.size,bar=document.getElementById('bar');bar.classList.toggle('show',q>0);document.getElementById('barTitle').textContent=q+' número'+(q===1?'':'s')+' selecionado'+(q===1?'':'s');document.getElementById('barPrice').textContent=(q*PRICE).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 function openCheckout(){const arr=[...selected].sort((a,b)=>a-b).map(n=>String(n).padStart(3,'0'));document.getElementById('sumNums').textContent=arr.join(', ');document.getElementById('sumQty').textContent=arr.length;document.getElementById('sumTotal').textContent=(arr.length*PRICE).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});document.getElementById('modal').classList.add('show')}
 function closeCheckout(){document.getElementById('modal').classList.remove('show')}
-async function createReservation(nums){
-  const res=await fetch(`${SUPABASE_URL}/rest/v1/rpc/criar_reserva`,{
+async function reserveOne(numero){
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/rpc/reservar_numero`,{
     method:'POST',
-    headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`,'Content-Type':'application/json'},
-    body:JSON.stringify({p_numeros:nums})
+    headers:{
+      apikey:SUPABASE_ANON_KEY,
+      Authorization:`Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type':'application/json'
+    },
+    body:JSON.stringify({p_numero:numero})
   });
   if(!res.ok){const body=await res.text();throw new Error(`HTTP ${res.status}: ${body}`)}
   return await res.json();
 }
-let countdownTimer=null;
-function showReservationSuccess(id, nums){
-  const old=document.getElementById('reservationSuccess'); if(old) old.remove();
-  const modal=document.createElement('div'); modal.id='reservationSuccess'; modal.className='modal show';
-  modal.innerHTML=`<div class="sheet"><div style="font-size:12px;color:#777;text-transform:uppercase;letter-spacing:.12em">Reserva criada</div><h3 style="margin-top:8px">Seus números estão seguros.</h3><p>Você tem 15 minutos para concluir a próxima etapa.</p><div class="summary"><div class="row"><span>Números</span><strong>${nums.map(n=>String(n).padStart(3,'0')).join(', ')}</strong></div><div class="row"><span>Reserva</span><strong style="font-size:12px;max-width:280px;overflow-wrap:anywhere">${id}</strong></div><div class="row"><span>Tempo restante</span><strong id="reservationTimer">15:00</strong></div></div><div class="actions"><button class="confirm" onclick="document.getElementById('reservationSuccess').remove()">Entendi</button></div></div>`;
-  document.body.appendChild(modal);
-  let remaining=15*60;
-  clearInterval(countdownTimer);
-  countdownTimer=setInterval(()=>{
-    remaining--;
-    const el=document.getElementById('reservationTimer');
-    if(el) el.textContent=`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
-    if(remaining<=0){clearInterval(countdownTimer);if(el)el.textContent='Expirada';loadRemoteStates();}
-  },1000);
-}
 async function finishReservation(){
-  const nums=[...selected].sort((a,b)=>a-b); if(!nums.length)return;
-  const btn=document.getElementById('reserveBtn'); btn.disabled=true; btn.textContent='Reservando...';
+  const nums=[...selected].sort((a,b)=>a-b);
+  if(!nums.length)return;
+  const btn=document.getElementById('reserveBtn');
+  btn.disabled=true; btn.textContent='Reservando...';
+  const ok=[], failed=[];
   try{
-    const reservationId=await createReservation(nums);
-    selected.clear(); closeCheckout(); update(); await loadRemoteStates();
-    showReservationSuccess(reservationId,nums);
-  }catch(e){
-    console.error('Erro ao criar reserva:',e);
-    alert('Não foi possível criar a reserva. Um dos números pode ter acabado de ser reservado por outra pessoa. Atualizei a grade para você.');
-    selected.clear(); closeCheckout(); update(); await loadRemoteStates();
-  }finally{btn.disabled=false;btn.textContent='Reservar números'}
-}
-loadRemoteStates();
+    for(const n of nums){
+      try{(await reserveOne(n))===true?ok.push(n):failed.push(n)}catch(e){console.error('Erro ao reservar',n,e);failed.push(n)}
+    }
+    selected.clear(); closeCheckout(); update();
+    await loadRemoteStates();
     if(ok.length && !failed.length) alert(`Reserva confirmada! ${ok.map(n=>String(n).padStart(3,'0')).join(', ')}`);
     else if(ok.length) alert(`Reservados: ${ok.map(n=>String(n).padStart(3,'0')).join(', ')}\nNão disponíveis/erro: ${failed.map(n=>String(n).padStart(3,'0')).join(', ')}`);
     else alert('Nenhum número foi reservado. Eles podem ter sido reservados por outra pessoa.');
