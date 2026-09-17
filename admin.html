@@ -37,6 +37,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .campaign-box input,.campaign-box textarea{width:100%;box-sizing:border-box}
 .campaign-result{margin-top:10px;font-size:13px}
 @media(max-width:700px){.campaign-grid{grid-template-columns:1fr}}
+
+.file-pick{display:block;padding:13px;border:1px dashed #3a3d44;border-radius:12px;cursor:pointer;text-align:center}
+.file-pick input{display:none}
+.image-preview{display:none;margin-top:12px;max-width:100%;max-height:260px;border-radius:14px;object-fit:cover}
+.upload-note{font-size:12px;opacity:.65;margin-top:7px}
 </style>
 </head>
 <body>
@@ -54,7 +59,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V3.0 · campanhas · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V3.1 · upload de imagens · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -82,8 +87,13 @@ button:disabled{opacity:.5;cursor:not-allowed}
           <textarea id="campDescricao" placeholder="Descrição da campanha"></textarea>
         </div>
         <div class="full">
-          <label>URL da imagem</label>
-          <input id="campImagem" type="url" placeholder="https://...">
+          <label>Imagem da campanha</label>
+          <label class="file-pick">
+            <input id="campImagemArquivo" type="file" accept="image/jpeg,image/png,image/webp">
+            <span id="campImagemLabel">Escolher imagem</span>
+          </label>
+          <img id="campImagemPreview" class="image-preview" alt="Prévia da imagem">
+          <div class="upload-note">JPG, PNG ou WEBP · máximo 5 MB</div>
         </div>
         <div>
           <label>Preço por número (R$)</label>
@@ -246,11 +256,29 @@ setInterval(async()=>{
   }
 },1000);
 
+
+$('campImagemArquivo').addEventListener('change',()=>{
+  const arquivo=$('campImagemArquivo').files[0];
+  const preview=$('campImagemPreview');
+  if(!arquivo){
+    $('campImagemLabel').textContent='Escolher imagem';
+    preview.style.display='none';
+    preview.removeAttribute('src');
+    return;
+  }
+  $('campImagemLabel').textContent=arquivo.name;
+  preview.src=URL.createObjectURL(arquivo);
+  preview.style.display='block';
+});
+
 $('campaignForm').addEventListener('submit', async e=>{
   e.preventDefault();
+
   const msg=$('campaignMsg');
+  const titulo=$('campTitulo').value.trim();
   const preco=Number($('campPreco').value);
   const quantidade=Number.parseInt($('campQuantidade').value,10);
+  const arquivo=$('campImagemArquivo').files[0];
 
   if(!Number.isFinite(preco) || preco<0 || !Number.isInteger(quantidade) || quantidade<1){
     msg.textContent='Confira o preço e a quantidade.';
@@ -258,16 +286,54 @@ $('campaignForm').addEventListener('submit', async e=>{
     return;
   }
 
-  if(!confirm(`Criar a campanha "${$('campTitulo').value.trim()}" como rascunho?`)) return;
+  if(arquivo && arquivo.size > 5*1024*1024){
+    msg.textContent='A imagem deve ter no máximo 5 MB.';
+    msg.className='campaign-result bad';
+    return;
+  }
 
-  msg.textContent='Criando campanha...';
+  if(arquivo && !['image/jpeg','image/png','image/webp'].includes(arquivo.type)){
+    msg.textContent='Use uma imagem JPG, PNG ou WEBP.';
+    msg.className='campaign-result bad';
+    return;
+  }
+
+  if(!confirm(`Criar a campanha "${titulo}" como rascunho?`)) return;
+
+  msg.textContent=arquivo?'Enviando imagem...':'Criando campanha...';
   msg.className='campaign-result';
   setBusy(true);
 
+  let imagemUrl='';
+
+  if(arquivo){
+    const ext=(arquivo.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const nome=`${crypto.randomUUID()}.${ext}`;
+
+    const {error:uploadError}=await sb.storage
+      .from('campanhas')
+      .upload(nome,arquivo,{
+        cacheControl:'3600',
+        upsert:false,
+        contentType:arquivo.type
+      });
+
+    if(uploadError){
+      setBusy(false);
+      msg.textContent='Erro ao enviar imagem: '+uploadError.message;
+      msg.className='campaign-result bad';
+      return;
+    }
+
+    const {data:urlData}=sb.storage.from('campanhas').getPublicUrl(nome);
+    imagemUrl=urlData.publicUrl;
+    msg.textContent='Imagem enviada. Criando campanha...';
+  }
+
   const {data,error}=await sb.rpc('admin_criar_campanha',{
-    p_titulo:$('campTitulo').value.trim(),
+    p_titulo:titulo,
     p_descricao:$('campDescricao').value.trim(),
-    p_imagem_url:$('campImagem').value.trim(),
+    p_imagem_url:imagemUrl,
     p_preco_numero:preco,
     p_quantidade_numeros:quantidade
   });
@@ -275,7 +341,7 @@ $('campaignForm').addEventListener('submit', async e=>{
   setBusy(false);
 
   if(error){
-    msg.textContent='Erro: '+error.message;
+    msg.textContent='Erro ao criar campanha: '+error.message;
     msg.className='campaign-result bad';
     return;
   }
@@ -283,6 +349,10 @@ $('campaignForm').addEventListener('submit', async e=>{
   msg.textContent='Campanha criada como rascunho · ID: '+data;
   msg.className='campaign-result ok';
   $('campaignForm').reset();
+  $('campImagemLabel').textContent='Escolher imagem';
+  const preview=$('campImagemPreview');
+  preview.style.display='none';
+  preview.removeAttribute('src');
 });
 
 $('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
