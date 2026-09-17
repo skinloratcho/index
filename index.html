@@ -24,6 +24,15 @@
 .cardProgress{height:6px;background:#ffffff10;border-radius:999px;overflow:hidden;margin:14px 0 2px}
 .cardProgress>i{display:block;height:100%;background:#fff;border-radius:999px}
 .cardMeta{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:6px}
+
+.participantOverlay{position:fixed;inset:0;background:#000b;backdrop-filter:blur(14px);z-index:9999;display:none;align-items:center;justify-content:center;padding:18px}
+.participantOverlay.open{display:flex}.participantModal{width:min(560px,100%);max-height:92vh;overflow:auto;background:#111;border:1px solid #ffffff20;border-radius:24px;padding:22px;box-shadow:0 30px 90px #0009}
+.participantModal h2{margin:0 0 5px;font-size:25px}.participantSub{color:var(--muted);margin-bottom:18px}.participantGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.participantGrid .full{grid-column:1/-1}
+.participantGrid label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}.participantGrid input{width:100%;border:1px solid #ffffff20;background:#090909;color:#fff;border-radius:13px;padding:13px 14px;outline:none}
+.participantSummary{margin:17px 0;padding:13px 14px;background:#ffffff08;border:1px solid var(--line);border-radius:14px;color:var(--muted);font-size:13px}.participantActions{display:flex;gap:10px;justify-content:flex-end}
+.participantActions button{border:0;border-radius:13px;padding:12px 15px;font-weight:800;cursor:pointer}.participantCancel{background:#222;color:#fff}.participantConfirm{background:#f5f5f7;color:#080808}
+.participantError{display:none;margin:12px 0;padding:11px 13px;border-radius:12px;background:#401717;color:#ffd4d4;font-size:13px}
+@media(max-width:600px){.participantGrid{grid-template-columns:1fr}.participantGrid .full{grid-column:auto}}
 @media(max-width:700px){.campaignHome{padding:12px 12px 60px}.campaignCards{grid-template-columns:1fr}.campaignImage{height:170px}.homeHead h2{font-size:26px}.wrap{padding:12px 12px 110px}.hero{min-height:500px}.heroContent{padding:24px}.hero:before{font-size:120px;top:7%;right:4%}.numbers{grid-template-columns:repeat(5,1fr)}.num{border-radius:12px}.top{padding-top:5px}.hero h1{font-size:48px}} 
 </style>
 </head>
@@ -43,10 +52,23 @@
  <div class="heroContent"><button class="backCampaigns" id="backCampaigns" onclick="showHome()">← Todas as campanhas</button><div class="eyebrow">Campanha em destaque</div><h1 id="campaignTitle">Carregando campanha...</h1><p id="campaignDescription">Buscando os dados publicados.</p><div class="price"><strong id="campaignPrice">—</strong><span>por número</span></div><div class="progress"><i id="campaignProgress" style="width:0%"></i></div><div class="meta"><span id="campaignPercent">0% preenchido</span><span id="campaignCount">—</span></div><button class="cta" onclick="document.getElementById('nums').scrollIntoView({behavior:'smooth'})">Escolher números</button></div>
 </section>
 <section class="section" id="nums"><div class="sectionHead"><div><small>ESCOLHA OS SEUS</small><h2>Números</h2></div><small id="available">Carregando...</small></div><div class="numbers" id="grid"></div><div id="dbStatus" style="margin-top:14px;font-size:12px;color:#aaa">🟡 Conectando ao Supabase...</div><div class="legend"><span><i class="dot"></i>Disponível</span><span><i class="dot h"></i>Reservado</span><span><i class="dot s"></i>Indisponível</span></div></section>
-<div class="foot">V9.2 Teste · home de campanhas · powered by GLORIA</div>
+<div class="foot">V10 Teste · participante vinculado à reserva · powered by GLORIA</div>
 </div>
 <div class="checkout" id="bar"><div><strong id="barTitle">0 números selecionados</strong><span id="barPrice">R$ 0,00</span></div><button onclick="openCheckout()">Continuar</button></div>
-<div class="modal" id="modal"><div class="sheet"><h3>Resumo</h3><p>Confira sua seleção antes de continuar.</p><div class="summary"><div class="row"><span>Números</span><strong id="sumNums">—</strong></div><div class="row"><span>Quantidade</span><strong id="sumQty">0</strong></div><div class="row"><span>Total demonstrativo</span><strong id="sumTotal">R$ 0,00</strong></div></div><p style="font-size:13px">Ao confirmar, os números selecionados serão reservados no banco. Pagamento e cadastro ainda não estão ativos nesta versão de teste.</p><div class="actions"><button class="ghost" onclick="closeCheckout()">Voltar</button><button class="confirm" id="reserveBtn" onclick="finishReservation()">Reservar números</button></div></div></div>
+<div class="modal" id="modal"><div class="sheet"><h3>Resumo</h3><p>Confira sua seleção antes de continuar.</p><div class="summary"><div class="row"><span>Números</span><strong id="sumNums">—</strong></div><div class="row"><span>Quantidade</span><strong id="sumQty">0</strong></div><div class="row"><span>Total demonstrativo</span><strong id="sumTotal">R$ 0,00</strong></div></div><p style="font-size:13px">Ao confirmar, os números selecionados serão reservados no banco. O cadastro do participante será vinculado a esta reserva. O pagamento ainda não está ativo nesta versão de teste.</p><div class="actions"><button class="ghost" onclick="closeCheckout()">Voltar</button><button class="confirm" id="reserveBtn" onclick="finishReservation()">Reservar números</button></div></div></div>
+
+<div class="participantOverlay" id="participantOverlay"><div class="participantModal">
+<h2>Seus dados</h2><div class="participantSub">Preencha seus dados para vincular a reserva aos seus números.</div>
+<form id="participantForm"><div class="participantGrid">
+<div class="full"><label>Nome completo</label><input id="pNome" autocomplete="name" required minlength="3"></div>
+<div><label>CPF</label><input id="pCpf" inputmode="numeric" required maxlength="14" placeholder="000.000.000-00"></div>
+<div><label>Data de nascimento</label><input id="pNascimento" type="date" required></div>
+<div><label>WhatsApp</label><input id="pWhatsapp" inputmode="tel" autocomplete="tel" required placeholder="(34) 99999-9999"></div>
+<div><label>E-mail</label><input id="pEmail" type="email" autocomplete="email" required></div>
+</div><div class="participantSummary" id="participantSummary"></div><div class="participantError" id="participantError"></div>
+<div class="participantActions"><button type="button" class="participantCancel" id="participantCancel">Voltar</button><button type="submit" class="participantConfirm" id="participantConfirm">Confirmar reserva</button></div>
+</form></div></div>
+
 <div class="modal" id="successModal"><div class="sheet successSheet"><div class="successIcon">✓</div><h3>Reserva realizada</h3><p>Seus números foram reservados juntos no banco.</p><div class="summary"><div class="row"><span>Números</span><strong class="successNums" id="successNums">—</strong></div><div class="row"><span>ID da reserva</span><span class="reservationId" id="successId">—</span></div></div><div class="timer" id="timer">15:00</div><div class="timerLabel">tempo restante desta reserva</div><p style="font-size:12px;margin-top:18px">Guarde o ID da reserva. Pagamento e cadastro ainda são demonstrativos nesta versão.</p><div class="actions"><button class="confirm" onclick="closeSuccess()">Entendi</button></div></div></div>
 <script>
 const SUPABASE_URL='https://fhtlbqvkzmwpengbfmfq.supabase.co';
@@ -232,38 +254,52 @@ function showSuccess(reservaId,nums){
   paint();timerInterval=setInterval(paint,1000);
 }
 function closeSuccess(){document.getElementById('successModal').classList.remove('show');clearInterval(timerInterval)}
-async function createReservation(numeros){
-  if(!ACTIVE_CAMPAIGN) throw new Error('Nenhuma campanha ativa');
-  const res=await fetch(`${SUPABASE_URL}/rest/v1/rpc/criar_reserva_campanha`,{
-    method:'POST',
-    headers:{
-      apikey:SUPABASE_ANON_KEY,
-      Authorization:`Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type':'application/json'
-    },
-    body:JSON.stringify({p_campanha:ACTIVE_CAMPAIGN.id,p_numeros:numeros})
-  });
-  if(!res.ok){const body=await res.text();throw new Error(`HTTP ${res.status}: ${body}`)}
-  return await res.json();
-}
-async function finishReservation(){
+function finishReservation(){
   const nums=[...selected].sort((a,b)=>a-b);
   if(!nums.length)return;
-  const btn=document.getElementById('reserveBtn');
-  btn.disabled=true; btn.textContent='Reservando...';
-  try{
-    const reservaId=await createReservation(nums);
-    selected.clear(); closeCheckout(); update();
-    await loadRemoteStates();
-    showSuccess(reservaId,nums);
-  }catch(e){
-    console.error('Erro ao criar reserva:',e);
-    await loadRemoteStates();
-    alert('Não foi possível concluir a reserva. Um ou mais números podem ter ficado indisponíveis. Nenhum número desta tentativa foi reservado.');
-  }finally{
-    btn.disabled=false;btn.textContent='Reservar números';
-  }
+  closeCheckout();
+  document.getElementById('participantSummary').textContent=`${nums.length} número(s) · ${(nums.length*PRICE).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`;
+  document.getElementById('participantError').style.display='none';
+  document.getElementById('participantOverlay').classList.add('open');
 }
+document.getElementById('participantCancel').onclick=()=>document.getElementById('participantOverlay').classList.remove('open');
+
+async function rpc(name,body){
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`,{
+    method:'POST',cache:'no-store',
+    headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`,'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  });
+  if(!res.ok){let msg=await res.text();try{msg=JSON.parse(msg).message||msg}catch{};throw new Error(msg)}
+  return await res.json();
+}
+
+document.getElementById('participantForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const nums=[...selected].sort((a,b)=>a-b);
+  if(!nums.length)return;
+  const btn=document.getElementById('participantConfirm'), err=document.getElementById('participantError');
+  btn.disabled=true;btn.textContent='Reservando...';err.style.display='none';
+  try{
+    const participanteId=await rpc('cadastrar_participante',{
+      p_nome:document.getElementById('pNome').value,
+      p_cpf:document.getElementById('pCpf').value,
+      p_data_nascimento:document.getElementById('pNascimento').value,
+      p_whatsapp:document.getElementById('pWhatsapp').value,
+      p_email:document.getElementById('pEmail').value
+    });
+    const reservaId=await rpc('criar_reserva_participante',{
+      p_campanha:ACTIVE_CAMPAIGN.id,p_numeros:nums,p_participante:participanteId
+    });
+    document.getElementById('participantOverlay').classList.remove('open');
+    selected.clear();update();
+    await openCampaign(ACTIVE_CAMPAIGN.id,false);
+    showSuccess(reservaId,nums);
+  }catch(ex){
+    console.error(ex);err.textContent=ex.message||'Não foi possível concluir a reserva.';err.style.display='block';
+    if(ACTIVE_CAMPAIGN) await openCampaign(ACTIVE_CAMPAIGN.id,false);
+  }finally{btn.disabled=false;btn.textContent='Confirmar reserva'}
+});
 loadRemoteStates();
 </script>
 </body></html>
