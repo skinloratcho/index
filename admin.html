@@ -67,7 +67,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <main id="adminView" class="hidden">
     <header>
-      <div><h1>Reservas</h1><div class="sub">Admin V4.3.2 · abas de campanhas corrigidas · reservas por campanha · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
+      <div><h1>Reservas</h1><div class="sub">Admin V4.4 · desempenho separado · reservas por campanha · atualização automática a cada 15s · próxima em <span id="refreshCountdown">15</span>s</div></div>
       <div class="top-actions"><button id="refresh" class="ghost">Atualizar</button><button id="logout" class="ghost">Sair</button></div>
     </header>
     <div class="stats">
@@ -96,6 +96,16 @@ button:disabled{opacity:.5;cursor:not-allowed}
         <button id="tabCampHistorico" type="button">Histórico</button>
       </div>
       <div id="campaignList" class="campaign-list"><div class="empty">Carregando campanhas...</div></div>
+    </section>
+
+    <section class="card campaign-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <div><h2 style="margin-bottom:4px">Desempenho</h2><div class="sub">Resumo financeiro e andamento das campanhas.</div></div>
+        <button id="toggleAnalytics" type="button">Abrir desempenho</button>
+      </div>
+      <div id="analyticsArea" class="hidden" style="margin-top:18px">
+        <div id="analyticsList" class="campaign-list"><div class="empty">Carregando dados...</div></div>
+      </div>
     </section>
 
     <section class="card campaign-box">
@@ -308,6 +318,63 @@ setInterval(async()=>{
 },1000);
 
 
+
+let analyticsOpen=false;
+
+$('toggleAnalytics').onclick=async()=>{
+  analyticsOpen=!analyticsOpen;
+  $('analyticsArea').classList.toggle('hidden',!analyticsOpen);
+  $('toggleAnalytics').textContent=analyticsOpen?'Fechar desempenho':'Abrir desempenho';
+  if(analyticsOpen) await carregarDesempenho();
+};
+
+async function carregarDesempenho(){
+  const box=$('analyticsList');
+  if(!box) return;
+  box.innerHTML='<div class="empty">Carregando dados...</div>';
+
+  const [c,n]=await Promise.all([
+    sb.from('campanhas').select('id,titulo,imagem_url,preco_numero,quantidade_numeros,status,criado_em').order('criado_em',{ascending:false}),
+    sb.from('numeros').select('campanha_id,status')
+  ]);
+
+  if(c.error||n.error){
+    box.innerHTML=`<div class="bad">Erro ao carregar desempenho: ${escapeHtml(c.error?.message||n.error?.message)}</div>`;
+    return;
+  }
+
+  const campanhas=(c.data||[]).filter(x=>x.status!=='rascunho');
+  const nums=n.data||[];
+  if(!campanhas.length){
+    box.innerHTML='<div class="empty">Nenhuma campanha publicada ainda.</div>'; return;
+  }
+
+  box.innerHTML=campanhas.map(camp=>{
+    const cn=nums.filter(x=>x.campanha_id===camp.id);
+    const vendidos=cn.filter(x=>x.status==='vendido').length;
+    const reservados=cn.filter(x=>x.status==='reservado').length;
+    const disponiveis=cn.filter(x=>x.status==='disponivel').length;
+    const total=Number(camp.quantidade_numeros)||cn.length;
+    const pct=total?Math.round((vendidos/total)*100):0;
+    const arrecadado=vendidos*Number(camp.preco_numero||0);
+    return `<div class="card campaign-card">
+      ${camp.imagem_url?`<img class="campaign-thumb" src="${escapeHtml(camp.imagem_url)}" alt="">`:`<div class="campaign-thumb"></div>`}
+      <div class="campaign-info" style="flex:1">
+        <h3>${escapeHtml(camp.titulo)}</h3>
+        <div class="meta">${escapeHtml(camp.status.toUpperCase())} · ${pct}% vendido</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px">
+          <span><b>${vendidos}</b> vendidos</span>
+          <span><b>${reservados}</b> reservados</span>
+          <span><b>${disponiveis}</b> disponíveis</span>
+          <span><b>${arrecadado.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</b> confirmado</span>
+        </div>
+        <div style="height:7px;background:#ffffff12;border-radius:999px;overflow:hidden;margin-top:12px">
+          <div style="height:100%;width:${pct}%;background:#fff;border-radius:999px"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 function atualizarAbasCampanhas(){
   const a=$('tabCampAtivas'), r=$('tabCampRascunhos'), h=$('tabCampHistorico');
